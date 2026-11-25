@@ -24,16 +24,29 @@
 set -euo pipefail
 
 usage() {
-    echo "用法: bash ${0##*/} [normal|dspark|all]"
+    echo "用法: bash ${0##*/} [normal|dspark|all] [--exe-mode eager|npugraph_ex|tilelang_ascendc|tilelang_pto]"
+    echo "可选对照参数: --write-reference DIR 或 --compare-reference DIR"
     echo "默认按顺序运行普通生成和 DSpark。"
 }
 
-MODE="${1:-all}"
-case "$MODE" in
-    normal|dspark|all) ;;
-    -h|--help) usage; exit 0 ;;
-    *) usage >&2; exit 2 ;;
-esac
+MODE=all
+EXE_MODE=eager
+REFERENCE_ARGS=()
+while (( $# )); do
+    case "$1" in
+        normal|dspark|all) MODE=$1; shift ;;
+        --exe-mode)
+            case "${2:-}" in
+                eager|npugraph_ex|tilelang_ascendc|tilelang_pto) EXE_MODE=$2; shift 2 ;;
+                *) usage >&2; exit 2 ;;
+            esac ;;
+        --write-reference|--compare-reference)
+            [[ $# -ge 2 && ${#REFERENCE_ARGS[@]} == 0 ]] || { usage >&2; exit 2; }
+            REFERENCE_ARGS=("$1" "$2"); shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
 
 REPO_ROOT="${REPO_ROOT:-$(cd "$(dirname "$(readlink -f "$0")")" && pwd -P)}"
 NATIVE_DIR="$REPO_ROOT/native"
@@ -150,10 +163,11 @@ mkdir -p "$LOG_DIR"
 run_repro() {
     local label=$1
     shift
+    if [[ $EXE_MODE != eager ]]; then label="${label}_${EXE_MODE}"; fi
     local log="$LOG_DIR/${label}.log"
     local rc=0 start=$SECONDS
     info "运行 $label (日志: $log)..."
-    $PYTHON "$NATIVE_DIR/executor_repro.py" --source "$MODEL_SOURCE" "$@" 2>&1 | tee "$log" || rc=$?
+    $PYTHON "$NATIVE_DIR/executor_repro.py" --source "$MODEL_SOURCE" --exe-mode "$EXE_MODE" "${REFERENCE_ARGS[@]}" "$@" 2>&1 | tee "$log" || rc=$?
     local last
     last=$(grep -o '{"result".*}' "$log" | tail -1 || true)
     if [[ $rc -eq 0 && "${last:-}" == *'"result": "pass"'* ]]; then

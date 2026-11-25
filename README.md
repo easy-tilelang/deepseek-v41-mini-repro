@@ -33,6 +33,10 @@ ASCEND_RT_VISIBLE_DEVICES=0 bash run_native_repro.sh
 tail -n 1 build/logs/normal.log build/logs/dspark.log
 ```
 
+要在单卡上编译并回放 decode，可运行 `ASCEND_RT_VISIBLE_DEVICES=0 bash run_native_repro.sh normal --exe-mode npugraph_ex`。将 `normal` 改为 `dspark` 可同时验证草稿模型的图回放。[图模式与验收字段](native/README.md#在单卡上编译-decode)
+
+安装支持有序分区的 `torch_tilelang` 后，`--exe-mode tilelang_ascendc` 和 `--exe-mode tilelang_pto` 可让对应后端编译 decode 中受支持的计算。可逐步对照 eager 的 logits 与 KV 缓存，并查看真实请求中执行的分区数。[TileLang 运行与测量](native/README.md#用-tilelang-分区执行-decode)
+
 ## 如何判断通过
 
 三个用例通过时均以状态码 `0` 退出，并输出 `"result": "pass"`。CPU 参考版将结果打印到终端，昇腾原生版还会将结果写入对应日志。
